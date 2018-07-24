@@ -1,0 +1,339 @@
+<ROSETTASCRIPTS>
+	<SCOREFXNS>
+           <SFXN1 weights=fldsgn_cen >
+                <Reweight scoretype=hbond_sr_bb weight=1.0 />
+                <Reweight scoretype=hbond_lr_bb weight=1.0 />
+		<Reweight scoretype=atom_pair_constraint weight=0.5/>
+		<Reweight scoretype=angle_constraint weight=0.5 />
+                <Reweight scoretype=dihedral_constraint weight=0.5 />
+                <Reweight scoretype=omega weight=0.5 />
+           </SFXN1>
+           <SFXN2 weights=fldsgn_cen >
+                <Reweight scoretype=hbond_sr_bb weight=1.0 />
+                <Reweight scoretype=hbond_lr_bb weight=1.0 />
+                <Reweight scoretype=atom_pair_constraint weight=1.0/>
+                <Reweight scoretype=angle_constraint weight=1.0 />
+                <Reweight scoretype=dihedral_constraint weight=1.0 />
+                <Reweight scoretype=omega weight=0.5 />
+                <Reweight scoretype=cart_bonded weight=0.5 />
+           </SFXN2>
+
+	   <SFXN3 weights="talaris2014_cst.wts" />           
+	   <standardfxn weights="talaris2014.wts" />
+	</SCOREFXNS>
+
+        <MOVERS>
+                <MakePolyX name="polyval" aa="VAL" />
+        </MOVERS>
+
+    	<FILTERS>
+		<ResidueCount name="nres" confidence="0" />
+
+                //////////////////////////////////////
+                // SHEET-BUILDING //
+                ////////////////////////////////////
+		#-------------------------------------------------
+                # Step 1:  Strands 4,5
+		#-------------------------------------------------
+		SecondaryStructure name=ss1  use_abego=1 blueprint="./bp1" cutoff=1.0 confidence=1/>
+		<SecondaryStructure name=ss1  use_abego=1 blueprint="./bp1" confidence=1/>
+		<SheetTopology name=st1 topology="3-8.A.99;4-5.A.99;4-7.A.99;1-8.A.99;3-6.A.99;2-7.A.99" blueprint="./bp1" confidence=1/>                
+	
+                <ScoreType name="all_lr_hb_fa" scorefxn="standardfxn" score_type="hbond_lr_bb" threshold=0.0 confidence=0 />
+                <CalculatorFilter name="lr_hb_res1" confidence="1" equation="SCORE/NRES" threshold="-0.40">
+                             <SCORE name="SCORE" filter_name="all_lr_hb_fa" />
+                             <NRES name="NRES" filter_name="nres" />
+                </CalculatorFilter>
+
+		<ScoreType name="tot_score" scorefxn="SFXN1" score_type="total_score" threshold=-10.0 confidence=1 />
+
+                <AverageDegree name="avdeg" threshold="15.0" distance_threshold="10.0" confidence=0/>
+                SasaBalance name=sasa_balance ratio_sc=2.0 confidence=0 />
+
+		FragmentLookupFilter name="faulty_fragments" lookup_name="source_fragments_4_mer" store_path="/gscratch/baker/lab/databases/VALL_clustered/backbone_profiler_database_06032014" lookup_mode="first" chain="1" threshold="0"  confidence="1" />
+
+                <CompoundStatement name=secst1 >
+                   <AND filter_name=ss1 />
+                   <AND filter_name=st1 />
+                   <AND filter_name=tot_score />
+		   <AND filter_name=lr_hb_res1 />
+		</CompoundStatement>
+
+		#----------------
+		# Design
+		#----------------
+                <SSPrediction name="sspred" confidence="1" cmd="~emarcos/Programs/psipred/psipred/runpsipred_single" use_probability="0" use_svm="0" threshold=0.75 blueprint="./bp1"/>
+
+                <ScoreType name="rama" scorefxn="standardfxn" score_type="rama" threshold=0.0 confidence="0" />
+                <CalculatorFilter name="rama_res" confidence="0" equation="SCORE/NRES" threshold="0">
+                             <SCORE name="SCORE" filter_name="rama" />
+                             <NRES name="NRES" filter_name="nres" />
+                </CalculatorFilter>
+
+                <ScoreType name="omega" scorefxn="standardfxn" score_type="omega" threshold=0.0 confidence="0" />
+
+                <CalculatorFilter name="omega_res" confidence="0" equation="SCORE/NRES" threshold="0">
+                             <SCORE name="SCORE" filter_name="omega" />
+                             <NRES name="NRES" filter_name="nres" />
+                </CalculatorFilter>
+
+                <CalculatorFilter name="lr_hb_res2" confidence="1" equation="SCORE/NRES" threshold="-0.45">
+                             <SCORE name="SCORE" filter_name="all_lr_hb_fa" />
+                             <NRES name="NRES" filter_name="nres" />
+                </CalculatorFilter>
+
+		<ScoreType name="hbond_bb_sc" scorefxn="standardfxn" score_type="hbond_bb_sc" threshold=0.0 confidence="0" />
+
+                <PackStat name=pack threshold=0.6 confidence=0/>
+
+                <SidechainAverageDegree name=sc_avdeg threshold=7.5 pho_pho=1 all_pho=0 confidence=0 task_operations="design_core"/>
+		<LocalPacking name=local_pack_cross1 threshold=-5.0 confidence=0 secondary_structure="E5,E6,E7,L7" />
+                <LocalPacking name=local_pack_cross2 threshold=-5.0 confidence=0 secondary_structure="E5,E6" />
+                <LocalPacking name=local_pack_cross3 threshold=-5.0 confidence=0 secondary_structure="E6,E7" />
+                LocalPacking name=local_pack_target_res threshold=0.0 confidence=0 task_operations="local_pack_residues"/>
+                TaskAwareScoreType name=target_res_ene task_operations="local_pack_residues" scorefxn=standardfxn score_type=total_score mode=average threshold=-2.1 confidence=0/>
+                <TaskAwareScoreType name=score_core_res task_operations="design_core" scorefxn=standardfxn score_type=total_score mode=average threshold=-1.8 confidence=1/>
+
+                <Holes name=holes threshold=2.0 confidence=0/>
+
+                <ScoreType name="score" scorefxn="standardfxn" score_type="total_score" threshold=0.0 confidence="0" />
+                <CalculatorFilter name="score_res0" confidence="1" equation="SCORE/NRES" threshold="-2.0">
+                             <SCORE name="SCORE" filter_name="score" />
+                             <NRES name="NRES" filter_name="nres" />
+                </CalculatorFilter>
+
+                <CalculatorFilter name="score_res" confidence="1" equation="SCORE/NRES" threshold="-2.1">
+                             <SCORE name="SCORE" filter_name="score" />
+                             <NRES name="NRES" filter_name="nres" />
+                </CalculatorFilter>
+
+
+                <CompoundStatement name=filt >
+                   <AND filter_name=score_res />
+                   <AND filter_name=pack />
+                   AND filter_name=holes />
+                </CompoundStatement>
+
+
+		# GMC filters.
+                <CombinedValue name=comb_filters confidence=0>
+                  <Add filter_name=sc_avdeg factor=-0.1/>
+                  <Add filter_name=score_core_res factor=1/>
+                </CombinedValue>
+
+
+
+	</FILTERS>
+        <RESIDUE_SELECTORS>
+
+                <Index name="resfile_residues" resnums="xxx"/>
+                <Not name="not_resfile" selector="resfile_residues" />
+
+                <SecondaryStructure name="strands_ini" ss="E" include_terminal_loops=0  use_dssp="0" pose_secstruct="xxx" />
+                <SecondaryStructure name="loops_ini" ss="L" include_terminal_loops=0  use_dssp="0" pose_secstruct="xxx" />
+                <PrimarySequenceNeighborhood name="loops_edges_ini" lower="1" upper="1" selector="loops_ini" />
+
+                <And name="strands" selectors="strands_ini,not_resfile" />
+                <And name="loops" selectors="loops_ini,not_resfile" />
+                <And name="loops_and_edges" selectors="loops_edges_ini,not_resfile" />
+		<And name="edges" selectors="strands,loops_and_edges"/>
+
+                <Not name="strand_secondary_structure_ini" selector="loops_and_edges" />
+                <And name="strand_secondary_structure" selectors="strand_secondary_structure_ini,not_resfile" />
+
+                # replace layer design.
+                <Layer name="surface" select_surface="1" use_sidechain_neighbors="1"
+                   core_cutoff="3.0" surface_cutoff="1.8" />
+                <Layer name="boundary" select_boundary="1" use_sidechain_neighbors="1"
+                   core_cutoff="3.0" surface_cutoff="1.8" />
+                <Layer name="core" select_core="1" use_sidechain_neighbors="1"
+                   core_cutoff="3.0" surface_cutoff="1.8" />
+                <Layer name="all_layers" select_core="1" select_boundary="1" select_surface="1" use_sidechain_neighbors="1" core_cutoff="3.0" surface_cutoff="1.8" />
+                <And name="strand_layers" selectors="strand_secondary_structure,all_layers" />
+                <And name="strand_surface" selectors="strand_secondary_structure,surface" />
+                <And name="strand_boundary" selectors="strand_secondary_structure,boundary" />
+                <And name="strand_core" selectors="strand_secondary_structure,core" />
+                <And name="loops_and_edges_surface" selectors="loops_and_edges,surface" />
+		<And name="loops_and_edges_boundary" selectors="loops_and_edges,boundary" />
+		<And name="loops_and_edges_core" selectors="loops_and_edges,core" />
+                <And name="edges_core" selectors="edges,core" />
+                <And name="loops_core" selectors="loops,core" />
+
+
+
+        </RESIDUE_SELECTORS>
+
+        <TASKOPERATIONS>
+            <LimitAromaChi2 name=limitchi2 include_trp=1 />
+            <ReadResfile name=resfile filename="./resfile"/>
+            <LayerDesign name="layer_gabe"
+                      layer="all"
+                      use_sidechain_neighbors="1"
+                      pore_radius="0.2"
+                      core="3.0"
+                      surface="1.8"
+                      repack_non_design="1"
+                      make_pymol_script="1">
+                      <core>
+                         <all append="M"/>
+                      </core>
+            </LayerDesign>        
+            <LayerDesign name="core_layer"
+                      layer="core"
+                      use_sidechain_neighbors="1"
+                      pore_radius="0.2"
+                      core="3.0"
+                      surface="1.8"
+                      repack_non_design="1"
+                      make_pymol_script="1">
+                      <core>
+                         <all append="M"/>
+                      </core>
+            </LayerDesign>
+
+
+            <OperateOnResidueSubset name="design_loops_surface" selector="loops_and_edges_surface">
+                    <RestrictAbsentCanonicalAASRLT aas="DEGKNPQRST"/>
+            </OperateOnResidueSubset>
+            <OperateOnResidueSubset name="design_loops_boundary" selector="loops_and_edges_boundary">
+                    <RestrictAbsentCanonicalAASRLT aas="ADEGKNPQRSTV"/>
+            </OperateOnResidueSubset>
+            <OperateOnResidueSubset name="design_loops_core" selector="loops_core">
+                    <RestrictAbsentCanonicalAASRLT aas="AGILPV"/>
+            </OperateOnResidueSubset>
+            <OperateOnResidueSubset name="design_edges_core" selector="edges_core">
+                    <RestrictAbsentCanonicalAASRLT aas="AGPVILMWFY"/>
+            </OperateOnResidueSubset>
+
+            <OperateOnResidueSubset name="strand_surface_aa" selector="strand_surface">
+                    <RestrictAbsentCanonicalAASRLT aas="EHKRQST"/>
+            </OperateOnResidueSubset>
+            <OperateOnResidueSubset name="strand_boundary_aa" selector="strand_boundary">
+                    <RestrictAbsentCanonicalAASRLT aas="EFIKLQRSTVWY"/>
+            </OperateOnResidueSubset>
+            <OperateOnResidueSubset name="strand_core_aa" selector="strand_core">
+                    <RestrictAbsentCanonicalAASRLT aas="VILMWFY"/>
+            </OperateOnResidueSubset>
+
+            <OperateOnResidueSubset name="design_core" selector="core">
+                    <RestrictAbsentCanonicalAASRLT aas="VILMWFYAGP"/>
+            </OperateOnResidueSubset>
+
+
+	    <ExtraRotamersGeneric name="ex1ex2" ex1=1 ex2aro=1 />
+        </TASKOPERATIONS>
+
+	<MOVERS>
+		// General movers//
+                <DumpPdb name="pdb1" fname="iter1.pdb" scorefxn="SFXN1" />
+                <DumpPdb name="pdb2" fname="iter2.pdb" scorefxn="SFXN2" />
+		<DumpPdb name="pdb3" fname="iter3.pdb" scorefxn="SFXN3" />
+	        <Dssp name=dssp/>
+
+                <SwitchResidueTypeSetMover name=fullatom set=fa_standard/>
+                <SwitchResidueTypeSetMover name=cent set=centroid/>   
+
+		MakePolyX name="polyval" aa="VAL" />
+
+
+                //////////////////////////////////////
+                // SHEET-BUILDING //
+                ////////////////////////////////////
+		#-------------------------------------------------
+                # Step 1:  Strands 4,5
+		#-------------------------------------------------
+                <SetSecStructEnergies name=set_ssene1 scorefxn=SFXN1 blueprint="./bp1.b" />
+                <BluePrintBDR name=bdr1 scorefxn=SFXN1 use_abego_bias=1 blueprint="./bp1.b" constraint_file="./cst1"/>           
+		<ConstraintSetMover name="addcst1" add_constraints="1" cst_file="./cst1"/>     
+		<ClearConstraintsMover name="remove_cst" />
+
+                <MinMover name=min1 scorefxn=SFXN1 chi=1 bb=1 type="dfpmin_armijo_nonmonotone_atol" tolerance=0.0001/>
+		<MinMover name=cart_min1 scorefxn=SFXN2 type="lbfgs_armijo_nonmonotone" tolerance=0.0001 max_iter=1000 chi=0 bb=1 bondangle=1 bondlength=1 cartesian=1/>
+                <ParsedProtocol name=cenmin1 >
+                  <Add mover_name=cent />
+                  <Add mover_name=addcst1 />
+                  <Add mover_name=min1 />
+		  Add mover_name=cart_min1 />
+                  <Add mover_name=fullatom />
+		<Add mover_name=remove_cst />
+                </ParsedProtocol>
+                <ParsedProtocol name=bdr1ss >
+                  <Add mover_name=bdr1 />
+                  <Add mover_name=cenmin1 />
+                  <Add mover_name=dssp />
+                </ParsedProtocol>
+                <LoopOver name=loop1 mover_name=bdr1ss filter_name=secst1 drift=0 iterations=50 ms_whenfail=FAIL_DO_NOT_RETRY/>
+
+
+
+                # minimization with native constraints
+                <AddConstraintsToCurrentConformationMover name="addcst_native" CA_only="1" bb_only="0" cst_weight="1" use_distance_cst="1"  />
+
+                <ParsedProtocol name=cenmin_native >
+                  <Add mover_name=remove_cst />
+                  <Add mover_name=cent />
+                  <Add mover_name=addcst_native />
+                  <Add mover_name=min1 />
+                  <Add mover_name=fullatom />
+                  <Add mover_name=remove_cst />
+                </ParsedProtocol>
+
+
+		# Design
+		<FastDesign name="quick_fdesign" task_operations="limitchi2,resfile,strand_surface_aa,strand_boundary_aa,strand_core_aa,design_loops_surface,design_loops_boundary,design_loops_core,design_edges_core" scorefxn="SFXN3" repeats="2" clear_designable_residues="1" cst_file="./pro_cst" />
+                <FastDesign name="fdesign" task_operations="ex1ex2,limitchi2,resfile,strand_surface_aa,strand_boundary_aa,strand_core_aa,design_loops_surface,design_loops_boundary,design_loops_core,design_edges_core" scorefxn="SFXN3" repeats="2" clear_designable_residues="0" />
+		# GMC design
+                FastDesign name="rm_hydrophobes"
+                      task_operations="resfile,layer_gen"
+                      scorefxn="SFXN2"  repeats="1"
+                      clear_designable_residues="0" />
+                <ParsedProtocol name=design >
+                         <Add mover_name=fdesign />
+                         <Add mover_name=dssp />
+                </ParsedProtocol>
+
+                <GenericMonteCarlo name=genericmc mover_name=design filter_name=comb_filters trials=5 sample_type=low temperature=0.6 drift=1/>
+
+
+	</MOVERS>
+	<APPLY_TO_POSE>
+	</APPLY_TO_POSE>
+
+	<PROTOCOLS>
+                <Add mover_name=set_ssene1 />
+                <Add mover_name=loop1 />
+
+		<Add mover_name=cenmin_native />
+		# filter those with bad hbond pairing (after minimization)
+		<Add filter_name=lr_hb_res1 />
+		Add filter_name=sasa_balance />
+
+                <Add mover_name=fullatom />
+                <Add mover_name=pdb1 />
+
+		# quick design step to discard bad structures
+		<Add mover_name=quick_fdesign/>
+		Add filter_name=faulty_fragments />
+		<Add filter_name=score_res0 />
+
+		# optimize score//sc_avdeg
+		Add mover_name=genericmc/>
+
+		# filters
+                Add filter_name=lr_hb_res2 />
+                Add filter_name=avdeg />
+                Add filter_name=score_res />
+                Add filter_name=score_core_res />
+                Add filter_name=rama_res />
+                Add filter_name=omega_res />
+                Add filter_name=hbond_bb_sc />
+                Add filter_name=sc_avdeg />
+                Add filter_name=holes />
+                Add filter_name=sspred />
+		Add filter_name=local_pack_cross1 />
+		Add filter_name=local_pack_cross2 />
+		Add filter_name=local_pack_cross3 />
+		Add filter_name=local_pack_target_res />
+		Add filter_name=target_res_ene />
+	</PROTOCOLS>
+</ROSETTASCRIPTS>
